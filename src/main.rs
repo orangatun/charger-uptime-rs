@@ -6,6 +6,7 @@ use regex::Regex;
 use std::process;
 use std::cmp::Ordering;
 use std::env::args;
+use std::result::Result;
 
 enum InputKind {
     None, 
@@ -13,82 +14,88 @@ enum InputKind {
     ChargerAvailability
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Ord)]
 struct TimeRange {
     from: u64,
     to: u64,
     up: bool
 }
 
+impl PartialOrd for TimeRange {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.from==other.from {
+            if self.to<other.to {
+                return Some(Ordering::Less);
+            } else if self.to>other.to {
+                return Some(Ordering::Greater);
+            } else {
+                return Some(Ordering::Equal);
+            }
+        } else {
+            if self.from<other.from {
+                return Some(Ordering::Less);
+            } else {
+                return Some(Ordering::Greater);
+            }
+        }
+    }
+}
+
 fn main() {
 
+    let file_path = get_file_path();
+    let (station_charger_map, charger_uptime_map, station_order) = construct_maps(&file_path);
+    compute_availability(station_charger_map, charger_uptime_map, station_order);
+}
+
+
+/// Looks for the file path in CLI params. If not found, prints error
+/// message to stderr, and exits. If found, returns file path string.
+/// 
+/// ### Input: This function does not have any input params
+///
+/// ### Output: 
+/// - `file_path`: A file path String.
+fn get_file_path() -> String {
+
     let args: Vec<String> = args().collect();
-    if args.len()==0 {
+    if args.len()<2 {
         eprintln!("Missing file path parameter. Please pass a relative file path.");
         process::exit(1);
     }
 
     // The path to the target binary will be passed as the first argument.
     // Hence the `args[1]` here
-    let file_name = &args[1];
-    let lines_iterator = read_lines(file_name);
+    args[1].clone()
+}
 
-    let mut currently_reading: InputKind = InputKind::None;
-    let mut station_charger_map: HashMap<u32, HashSet<u32>> = HashMap::new();
-    let mut charger_uptime_map: HashMap<u32, Vec<TimeRange>> = HashMap::new();
-    let mut station_order: Vec<u32> = Vec::new();
+/// Takes in a string reference to a file path, and returns an iterator of lines
+/// ### Input: 
+/// - `file_path`: A string reference to file path
+/// 
+/// ### Output:
+/// - `Result<Lines, Error>`: An iterator of lines wrapped in `Ok()` if successful 
+/// and `Error` in case of error.
+fn read_lines(file_path: &str) -> Result<Lines<BufReader<File>>, Error> {
 
-    match lines_iterator {
-        Ok(lines) => {
-            for line in lines {
-                match line {
-                    Ok(l) => {
-                        match l.trim() {
-                            "" => {},
-                            "[Stations]" => currently_reading = InputKind::Station,
-                            "[Charger Availability Reports]" => currently_reading = InputKind::ChargerAvailability,
-                            trimmed_l => {
-                                match currently_reading {
-                                    InputKind::None => panic!("Unable to parse section"),
-                                    InputKind::Station => {
-                                        let (station_id, chargers) = parse_station(trimmed_l).unwrap();
-                                        
-                                        if !station_charger_map.contains_key(&station_id) {
-                                            station_charger_map.insert(station_id, HashSet::new());
-                                            station_order.push(station_id);
-                                        }
+    let file: File = File::open(file_path)?;
+    Ok(BufReader::new(file).lines())
+}
 
-                                        let charger_set: &mut HashSet<u32> = station_charger_map.get_mut(&station_id).unwrap();
-                                        charger_set.extend(chargers);
-                                    },
-                                    InputKind::ChargerAvailability => {
-                                        let (charger_id, time_range) = parse_charger_availability(trimmed_l).unwrap();
-                                        if !charger_uptime_map.contains_key(&charger_id) {
-                                            let mut uptime_ranges: Vec<TimeRange> = Vec::new();
-                                            uptime_ranges.push(time_range);
-                                            charger_uptime_map.insert(charger_id, uptime_ranges);
-                                        } else {
-                                            let uptime_ranges: &mut Vec<TimeRange> = charger_uptime_map.get_mut(&charger_id).unwrap();
-                                            uptime_ranges.push(time_range);
-                                        }
-                                    },
-                                }
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to read line.\n{}.", e);
-                        process::exit(2);
-                    },
-                }
-            }
-        },
-        Err(_) => {
-            eprintln!("File not found. Please enter a valid path to a file.");
-            process::exit(2);
-        }
-    };
-    
+/// Takes in a tuple of station-charger map, charger-uptime map, 
+/// and station insertion order, to compute availability percentage 
+/// for each station
+/// 
+/// ### Input:
+/// - `station_charger_map`: A map of Station ID to IDs of chargers at the station
+/// - `charger_uptime_map`: A map of Charger ID to `TimeRange` structs for the charger
+/// - `station_order`: A vector with list of stations in the order they appear in input
+///
+/// ### Output: This function does not return anything.
+fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
+                         charger_uptime_map: HashMap<u32, Vec<TimeRange>>,
+                         station_order: Vec<u32> ) {
+
     for i in 0..station_order.len() {
         let station_id = &station_order[i];
         let chargers = station_charger_map.get(station_id).unwrap();
@@ -107,23 +114,7 @@ fn main() {
             continue;
         }
 
-        station_available_time.sort_by(|a,b| {
-            if a.from==b.from {
-                if a.to<b.to {
-                    return Ordering::Less;
-                } else if a.to>b.to {
-                    return Ordering::Greater;
-                } else {
-                    return Ordering::Equal;
-                }
-            } else {
-                if a.from<b.from {
-                    return Ordering::Less;
-                } else {
-                    return Ordering::Greater;
-                }
-            }
-        });
+        station_available_time.sort_by(|a,b| a.cmp(&b));
 
         let first_charger_up_time: u64 = station_available_time[0].from;
         let mut unavailable_time : u64 = 0;
@@ -149,17 +140,70 @@ fn main() {
     }
 }
 
-/// Takes in a string reference to a file path, and returns an iterator of lines
+/// Takes in a string reference to a file path, and returns a tuple of 
+/// station-charger map, charger-uptime map, and station insertion order
 /// ### Input: 
-/// - `file_name`: A string reference to file path
+/// - `file_path`: A string reference to file path
 /// 
-/// ### Output:
-/// - `Result<Lines, Error>`: An iterator of lines wrapped in `Ok()` if successful 
-/// and `Error` in case of error.
-fn read_lines(file_name: &str) -> Result<Lines<BufReader<File>>, Error> {
+/// ### Output: A tuple consisting of
+/// - `station_charger_map`: A map of Station ID to IDs of chargers at the station
+/// - `charger_uptime_map`: A map of Charger ID to `TimeRange` structs for the charger
+/// - `station_order`: A vector with list of stations in the order they appear in input
+fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>, 
+                                        HashMap<u32, Vec<TimeRange>>,
+                                        Vec<u32> ) {
 
-    let file: File = File::open(file_name)?;
-    Ok(BufReader::new(file).lines())
+    let mut currently_reading: InputKind = InputKind::None;
+    let mut station_charger_map: HashMap<u32, HashSet<u32>> = HashMap::new();
+    let mut charger_uptime_map: HashMap<u32, Vec<TimeRange>> = HashMap::new();
+    let mut station_order: Vec<u32> = Vec::new();
+
+    let lines_iterator = read_lines(&file_path);
+    if Result::is_err(&lines_iterator) {
+        eprintln!("File not found. Please enter a valid path to a file.");
+        process::exit(2);
+    }
+    let lines = lines_iterator.unwrap();
+    for wrapped_line in lines {
+        if Result::is_err(&wrapped_line) {
+            eprintln!("Failed to read line.\n{}.", wrapped_line.unwrap());
+            process::exit(2);
+        }
+        let l = wrapped_line.unwrap();
+        match l.trim() {
+            "" => {},
+            "[Stations]" => currently_reading = InputKind::Station,
+            "[Charger Availability Reports]" => currently_reading = InputKind::ChargerAvailability,
+            trimmed_l => {
+                match currently_reading {
+                    InputKind::None => panic!("Unable to parse section"),
+                    InputKind::Station => {
+                        let (station_id, chargers) = parse_station(trimmed_l).unwrap();
+                        
+                        if !station_charger_map.contains_key(&station_id) {
+                            station_charger_map.insert(station_id, HashSet::new());
+                            station_order.push(station_id);
+                        }
+
+                        let charger_set: &mut HashSet<u32> = station_charger_map.get_mut(&station_id).unwrap();
+                        charger_set.extend(chargers);
+                    },
+                    InputKind::ChargerAvailability => {
+                        let (charger_id, time_range) = parse_charger_availability(trimmed_l).unwrap();
+                        if !charger_uptime_map.contains_key(&charger_id) {
+                            let mut uptime_ranges: Vec<TimeRange> = Vec::new();
+                            uptime_ranges.push(time_range);
+                            charger_uptime_map.insert(charger_id, uptime_ranges);
+                        } else {
+                            let uptime_ranges: &mut Vec<TimeRange> = charger_uptime_map.get_mut(&charger_id).unwrap();
+                            uptime_ranges.push(time_range);
+                        }
+                    },
+                }
+            }
+        }
+    }
+    (station_charger_map, charger_uptime_map, station_order)
 }
 
 /// Parses a line of station info and returns it wrapped in a `Result()`.
