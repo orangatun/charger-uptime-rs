@@ -460,4 +460,20 @@ mod tests {
         assert_eq!(charger_id, charger_id_parsed); 
         assert_eq!(time_range, time_range_parsed);
     }
+
+    #[test]
+    fn parse_charger_up_missing_false() {
+        let charger_string = "1 1000 10000";
+        let charger_id: u32 = 1;
+        let time_range = TimeRange {
+            from: 1000,
+            to: 10000,
+            up: false,
+        };
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_ok());
+        let (charger_id_parsed, time_range_parsed) = parse_output.unwrap();
+        assert_eq!(charger_id, charger_id_parsed); 
+        assert_eq!(time_range, time_range_parsed);
+    }
 }
