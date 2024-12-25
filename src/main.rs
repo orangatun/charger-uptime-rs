@@ -212,7 +212,10 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
             "[Charger Availability Reports]" => currently_reading = InputKind::ChargerAvailability,
             trimmed_l => {
                 match currently_reading {
-                    InputKind::None => panic!("Unable to parse section"),
+                    InputKind::None => {
+                        eprintln!("Invalid file format. Unable to read file.\nPlease ensure the file is a `.txt`");
+                        process::exit(1);
+                    },
                     InputKind::Station => {
                         let station_parse_result = parse_station(trimmed_l);
                         if let Err(station_parse_error) = station_parse_result {
