@@ -431,4 +431,17 @@ mod tests {
         assert_eq!(charger_id, charger_id_parsed); 
         assert_eq!(time_range, time_range_parsed);
     }
+
+
+    #[test]
+    fn parse_charger_invalid_id() {
+        let charger_string = "A 1000 10000 true";
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Could not parse charger availability entry. Please check the input file."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
 }
