@@ -43,7 +43,7 @@ impl PartialOrd for TimeRange {
 fn main() {
 
     let args: Vec<String> = args().collect();
-    if args.len()==0 {
+    if args.len()<2 {
         eprintln!("Missing file path parameter. Please pass a relative file path.");
         process::exit(1);
     }
