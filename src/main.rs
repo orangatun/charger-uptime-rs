@@ -25,19 +25,9 @@ struct TimeRange {
 impl PartialOrd for TimeRange {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.from==other.from {
-            if self.to<other.to {
-                return Some(Ordering::Less);
-            } else if self.to>other.to {
-                return Some(Ordering::Greater);
-            } else {
-                return Some(Ordering::Equal);
-            }
+            return Some(self.to.cmp(&other.to));
         } else {
-            if self.from<other.from {
-                return Some(Ordering::Less);
-            } else {
-                return Some(Ordering::Greater);
-            }
+            return Some(self.from.cmp(&other.from));
         }
     }
 }
