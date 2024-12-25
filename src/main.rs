@@ -214,8 +214,12 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
                 match currently_reading {
                     InputKind::None => panic!("Unable to parse section"),
                     InputKind::Station => {
-                        let (station_id, chargers) = parse_station(trimmed_l).unwrap();
-                        
+                        let station_parse_result = parse_station(trimmed_l);
+                        if let Err(station_parse_error) = station_parse_result {
+                            eprintln!("{}", station_parse_error);
+                            process::exit(2);
+                        }
+                        let (station_id, chargers) = station_parse_result.unwrap();
                         if !station_charger_map.contains_key(&station_id) {
                             station_charger_map.insert(station_id, HashSet::new());
                             station_order.push(station_id);
