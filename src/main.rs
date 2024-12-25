@@ -294,7 +294,7 @@ fn parse_station(line: &str) -> Result<(u32, Vec<u32>), Error> {
 /// `TimeRange` wrapped in `Ok()` if successful and `Error` in case of error. 
 /// The `TimeRange` struct contains parsed start time, end time, and up/down status of charger. 
 fn parse_charger_availability(line: &str) -> Result<(u32, TimeRange), Error> {
-    let re = Regex::new(r"(?<charger_id>\d+)\s+(?<start_time>\d+)\s+(?<end_time>\d+)\s*(?<up_status>\w+)").unwrap();
+    let re = Regex::new(r"(?<charger_id>\d+)\s+(?<start_time>\d+)\s+(?<end_time>\d+)\s*(?<up_status>\w*)").unwrap();
     let captures_wrapped = re.captures(line);
     if captures_wrapped.is_none() {
         return Err(Error::new(ErrorKind::InvalidData, "Could not parse charger availability entry. Please check the input file."));
