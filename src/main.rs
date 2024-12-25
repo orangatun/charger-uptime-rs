@@ -225,7 +225,12 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
                         charger_set.extend(chargers);
                     },
                     InputKind::ChargerAvailability => {
-                        let (charger_id, time_range) = parse_charger_availability(trimmed_l).unwrap();
+                        let charger_parse_result = parse_charger_availability(trimmed_l);
+                        if let Err(charger_parse_error) = charger_parse_result {
+                            eprintln!("{}", charger_parse_error);
+                            process::exit(2);
+                        }
+                        let (charger_id, time_range) = charger_parse_result.unwrap();
                         if !charger_uptime_map.contains_key(&charger_id) {
                             let mut uptime_ranges: Vec<TimeRange> = Vec::new();
                             uptime_ranges.push(time_range);
