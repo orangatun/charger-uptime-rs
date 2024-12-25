@@ -379,4 +379,16 @@ mod tests {
             panic!("Parsing was successful!");
         }
     }
+
+    #[test]
+    fn parse_station_invalid_charger() {
+        let station_string = "1 4294967296";
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid station entry for Station ID: 1.\nCould not parse charger ID."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
 }
