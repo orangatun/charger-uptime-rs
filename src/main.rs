@@ -7,6 +7,7 @@ use std::process;
 use std::cmp::Ordering;
 use std::env::args;
 use std::result::Result;
+use std::io::ErrorKind;
 
 enum InputKind {
     None, 
@@ -277,15 +278,35 @@ fn parse_station(line: &str) -> Result<(u32, Vec<u32>), Error> {
 /// The `TimeRange` struct contains parsed start time, end time, and up/down status of charger. 
 fn parse_charger_availability(line: &str) -> Result<(u32, TimeRange), Error> {
     let re = Regex::new(r"(?<charger_id>\d+)\s+(?<start_time>\d+)\s+(?<end_time>\d+)\s*(?<up_status>\w+)").unwrap();
-    let captures = re.captures(line).unwrap();
-    let charger_id: u32 = captures["charger_id"].parse::<u32>().unwrap();
+    let captures_wrapped = re.captures(line);
+    if captures_wrapped.is_none() {
+        return Err(Error::new(ErrorKind::InvalidData, "Could not parse charger availability entry. Please check the input file."));
+    }
+    let captures = captures_wrapped.unwrap();
+    let charger_id_wrapped = captures["charger_id"].parse::<u32>();
+    if charger_id_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, "Invalid charger availability entry.\nCould not parse charger ID."));
+    }
+    let charger_id = charger_id_wrapped.unwrap();
+    let start_time_wrapped = captures["start_time"].parse::<u64>();
+    if start_time_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid charger availability entry.\nCould not parse start time for charger ID: {}.", charger_id)));
+    }
+    let end_time_wrapped = captures["end_time"].parse::<u64>();
+    if end_time_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid charger availability entry.\nCould not parse end time for charger ID: {}.", charger_id)));
+    }
+    // Note: Any input for up status that's not 'true' or 'True' will be considered as false.
     let time_range = TimeRange {
-        from: captures["start_time"].parse::<u64>().unwrap(),
-        to: captures["end_time"].parse::<u64>().unwrap(),
+        from: start_time_wrapped.unwrap(),
+        to: end_time_wrapped.unwrap(),
         up: match &captures["up_status"] {
             "true" | "True" => true,
             _ => false,
         },
     };
+    if time_range.from>time_range.to {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid charger availability entry for charger ID {}!\nAvailability from is after availability to.", charger_id)));
+    }
     Ok((charger_id, time_range))
 }
