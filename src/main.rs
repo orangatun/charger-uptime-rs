@@ -113,7 +113,7 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
         let mut station_reported_time: Vec<TimeRange> = Vec::new();
         for charger in chargers {
             let charger_times = charger_uptime_map.get(charger);
-            if charger_times == None {
+            if charger_times.is_none() {
                 continue;
             }
             for charger_time in charger_times.unwrap() {
