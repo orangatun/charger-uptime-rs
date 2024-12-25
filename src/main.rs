@@ -391,4 +391,16 @@ mod tests {
             panic!("Parsing was successful!");
         }
     }
+
+    #[test]
+    fn parse_station_max_charger_id() {
+        let station_string = "1 4294967295";
+        let chargers_vec: Vec<u32> = vec![4294967295];
+        let station_id: u32 = 1;
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_ok());
+        let (station_id_parsed, chargers_parsed) = parse_output.unwrap();
+        assert_eq!(station_id, station_id_parsed); 
+        assert_eq!(chargers_vec, chargers_parsed);
+    }
 }
