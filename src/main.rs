@@ -403,4 +403,16 @@ mod tests {
         assert_eq!(station_id, station_id_parsed); 
         assert_eq!(chargers_vec, chargers_parsed);
     }
+
+    #[test]
+    fn parse_station_neg_charger_id() {
+        let station_string = "1 -1";
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid station entry for Station ID: 1.\nCould not parse charger ID."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
 }
