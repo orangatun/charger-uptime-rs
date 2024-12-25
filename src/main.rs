@@ -185,9 +185,9 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
 /// - `station_charger_map`: A map of Station ID to IDs of chargers at the station
 /// - `charger_uptime_map`: A map of Charger ID to `TimeRange` structs for the charger
 /// - `station_order`: A vector with list of stations in the order they appear in input
-fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>, 
+fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>, 
                                         HashMap<u32, Vec<TimeRange>>,
-                                        Vec<u32> ) {
+                                        Vec<u32> ), Error> {
 
     let mut currently_reading: InputKind = InputKind::None;
     let mut station_charger_map: HashMap<u32, HashSet<u32>> = HashMap::new();
@@ -251,7 +251,7 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
             }
         }
     }
-    (station_charger_map, charger_uptime_map, station_order)
+    return Ok((station_charger_map, charger_uptime_map, station_order))
 }
 
 /// Parses a line of station info and returns it wrapped in a `Result()`.
