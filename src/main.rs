@@ -260,11 +260,23 @@ fn parse_station(line: &str) -> Result<(u32, Vec<u32>), Error> {
 
     let re = Regex::new(r"\s+").unwrap();
     let mut splits: Vec<&str> = re.split(line).collect();
-    let station_id = splits.swap_remove(0).parse::<u32>().unwrap();
+    if splits.len()==0 {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Could not parse station: \n'{}'", line)));
+    }
+    let station_id_str = splits.swap_remove(0);
+    let station_id_wrapped = station_id_str.parse::<u32>();
+    if station_id_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid station ID: '{}'", station_id_str)));
+    }
+    let station_id = station_id_wrapped.unwrap();
     let mut chargers: Vec<u32> = Vec::new();
 
     while splits.len()>0 {
-        chargers.push(splits.pop().unwrap().parse::<u32>().unwrap());
+        let charger_id_wrapped = splits.pop().unwrap().parse::<u32>();
+        if charger_id_wrapped.is_err() {
+            return Err(Error::new(ErrorKind::InvalidData, format!("Invalid station entry for Station ID: {}.\nCould not parse charger ID.", station_id)));
+        }
+        chargers.push(charger_id_wrapped.unwrap());
     }
     Ok((station_id, chargers))
 
