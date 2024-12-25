@@ -327,3 +327,181 @@ fn parse_charger_availability(line: &str) -> Result<(u32, TimeRange), Error> {
     }
     Ok((charger_id, time_range))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_station_test_valid() {
+        let station_string = "1 1001 1002";
+        let chargers_vec: Vec<u32> = vec![1001, 1002];
+        let station_id: u32 = 1;
+        let parse_output = parse_station(&station_string);
+        assert!(!parse_output.is_err());
+        let (station_id_parsed, chargers_parsed) = parse_output.unwrap();
+        assert_eq!(station_id, station_id_parsed); 
+        assert_eq!(chargers_vec, chargers_parsed);
+    }
+
+    #[test]
+    fn parse_station_wrong_id() {
+        let station_string = "A 1001 1002";
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid station ID: 'A'"); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
+
+    #[test]
+    fn parse_station_missing_chargers() {
+        let station_string = "1";
+        let chargers_vec: Vec<u32> = Vec::new();
+        let station_id: u32 = 1;
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_ok());
+        let (station_id_parsed, chargers_parsed) = parse_output.unwrap();
+        assert_eq!(station_id, station_id_parsed); 
+        assert_eq!(chargers_vec, chargers_parsed);
+    }
+
+    #[test]
+    fn parse_station_empty() {
+        let station_string = "";
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid station ID: ''"); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
+
+    #[test]
+    fn parse_station_invalid_charger() {
+        let station_string = "1 4294967296";
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid station entry for Station ID: 1.\nCould not parse charger ID."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
+
+    #[test]
+    fn parse_station_max_charger_id() {
+        let station_string = "1 4294967295";
+        let chargers_vec: Vec<u32> = vec![4294967295];
+        let station_id: u32 = 1;
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_ok());
+        let (station_id_parsed, chargers_parsed) = parse_output.unwrap();
+        assert_eq!(station_id, station_id_parsed); 
+        assert_eq!(chargers_vec, chargers_parsed);
+    }
+
+    #[test]
+    fn parse_station_neg_charger_id() {
+        let station_string = "1 -1";
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid station entry for Station ID: 1.\nCould not parse charger ID."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
+
+    #[test]
+    fn parse_charger_valid() {
+        let charger_string = "1 1000 10000 true";
+        let charger_id: u32 = 1;
+        let time_range = TimeRange {
+            from: 1000,
+            to: 10000,
+            up: true,
+        };
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_ok());
+        let (charger_id_parsed, time_range_parsed) = parse_output.unwrap();
+        assert_eq!(charger_id, charger_id_parsed); 
+        assert_eq!(time_range, time_range_parsed);
+    }
+
+
+    #[test]
+    fn parse_charger_invalid_id() {
+        let charger_string = "A 1000 10000 true";
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Could not parse charger availability entry. Please check the input file."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
+
+    #[test]
+    fn parse_charger_up_false() {
+        let charger_string = "1 1000 10000 false";
+        let charger_id: u32 = 1;
+        let time_range = TimeRange {
+            from: 1000,
+            to: 10000,
+            up: false,
+        };
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_ok());
+        let (charger_id_parsed, time_range_parsed) = parse_output.unwrap();
+        assert_eq!(charger_id, charger_id_parsed); 
+        assert_eq!(time_range, time_range_parsed);
+    }
+
+    #[test]
+    fn parse_charger_up_missing_false() {
+        let charger_string = "1 1000 10000";
+        let charger_id: u32 = 1;
+        let time_range = TimeRange {
+            from: 1000,
+            to: 10000,
+            up: false,
+        };
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_ok());
+        let (charger_id_parsed, time_range_parsed) = parse_output.unwrap();
+        assert_eq!(charger_id, charger_id_parsed); 
+        assert_eq!(time_range, time_range_parsed);
+    }
+
+    #[test]
+    fn parse_charger_up_true_pascal() {
+        let charger_string = "1 1000 10000 True";
+        let charger_id: u32 = 1;
+        let time_range = TimeRange {
+            from: 1000,
+            to: 10000,
+            up: true,
+        };
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_ok());
+        let (charger_id_parsed, time_range_parsed) = parse_output.unwrap();
+        assert_eq!(charger_id, charger_id_parsed); 
+        assert_eq!(time_range, time_range_parsed);
+    }
+
+    #[test]
+    fn parse_charger_before_gt_after() {
+        let charger_string = "1 10000 1000 true";
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid charger availability entry for charger ID 1!\nAvailability from is after availability to."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
+}
