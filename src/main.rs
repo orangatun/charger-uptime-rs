@@ -1,6 +1,6 @@
 
 use std::fs::File;
-use std::io::{Lines, BufReader, BufRead,Error};
+use std::io::{Lines, BufReader, BufRead, Error};
 use std::collections::{HashMap, HashSet};
 use regex::Regex;
 use std::process;
@@ -25,19 +25,9 @@ struct TimeRange {
 impl PartialOrd for TimeRange {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.from==other.from {
-            if self.to<other.to {
-                return Some(Ordering::Less);
-            } else if self.to>other.to {
-                return Some(Ordering::Greater);
-            } else {
-                return Some(Ordering::Equal);
-            }
+            return Some(self.to.cmp(&other.to));
         } else {
-            if self.from<other.from {
-                return Some(Ordering::Less);
-            } else {
-                return Some(Ordering::Greater);
-            }
+            return Some(self.from.cmp(&other.from));
         }
     }
 }
@@ -219,7 +209,7 @@ fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>,
             trimmed_l => {
                 match currently_reading {
                     InputKind::None => {
-                        return Err(Error::new(ErrorKind::InvalidData, "Invalid file format. Unable to read file.\nPlease ensure the file is a `.txt`"));
+                        return Err(Error::new(ErrorKind::InvalidData, "Invalid file format. Unable to read file."));
                     },
                     InputKind::Station => {
                         let station_parse_result = parse_station(trimmed_l);
@@ -304,7 +294,7 @@ fn parse_station(line: &str) -> Result<(u32, Vec<u32>), Error> {
 /// `TimeRange` wrapped in `Ok()` if successful and `Error` in case of error. 
 /// The `TimeRange` struct contains parsed start time, end time, and up/down status of charger. 
 fn parse_charger_availability(line: &str) -> Result<(u32, TimeRange), Error> {
-    let re = Regex::new(r"(?<charger_id>\d+)\s+(?<start_time>\d+)\s+(?<end_time>\d+)\s*(?<up_status>\w+)").unwrap();
+    let re = Regex::new(r"(?<charger_id>\d+)\s+(?<start_time>\d+)\s+(?<end_time>\d+)\s*(?<up_status>\w*)").unwrap();
     let captures_wrapped = re.captures(line);
     if captures_wrapped.is_none() {
         return Err(Error::new(ErrorKind::InvalidData, "Could not parse charger availability entry. Please check the input file."));
