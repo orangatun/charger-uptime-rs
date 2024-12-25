@@ -492,4 +492,16 @@ mod tests {
         assert_eq!(charger_id, charger_id_parsed); 
         assert_eq!(time_range, time_range_parsed);
     }
+
+    #[test]
+    fn parse_charger_before_gt_after() {
+        let charger_string = "1 10000 1000 true";
+        let parse_output = parse_charger_availability(&charger_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid charger availability entry for charger ID 1!\nAvailability from is after availability to."); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
 }
