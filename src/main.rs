@@ -3,8 +3,9 @@ use std::fs::File;
 use std::io::{Lines, BufReader, BufRead,Error};
 use std::collections::{HashMap, HashSet};
 use regex::Regex;
-// use std::process;
+use std::process;
 use std::cmp::Ordering;
+use std::env::args;
 
 enum InputKind {
     None, 
@@ -21,7 +22,15 @@ struct TimeRange {
 
 fn main() {
 
-    let file_name = "./input.txt";
+    let args: Vec<String> = args().collect();
+    if args.len()==0 {
+        eprintln!("Missing file path parameter. Please pass a relative file path.");
+        process::exit(1);
+    }
+
+    // The path to the target binary will be passed as the first argument.
+    // Hence the `args[1]` here
+    let file_name = &args[1];
     let lines_iterator = read_lines(file_name);
 
     let mut currently_reading: InputKind = InputKind::None;
