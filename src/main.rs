@@ -3,6 +3,8 @@ use std::fs::File;
 use std::io::{Lines, BufReader, BufRead,Error};
 use std::collections::{HashMap, HashSet};
 use regex::Regex;
+// use std::process;
+use std::cmp::Ordering;
 
 enum InputKind {
     None, 
@@ -10,6 +12,7 @@ enum InputKind {
     ChargerAvailability
 }
 
+#[derive(Clone, Debug)]
 struct TimeRange {
     from: u64,
     to: u64,
@@ -24,7 +27,8 @@ fn main() {
     let mut currently_reading: InputKind = InputKind::None;
     let mut station_charger_map: HashMap<u32, HashSet<u32>> = HashMap::new();
     let mut charger_uptime_map: HashMap<u32, Vec<TimeRange>> = HashMap::new();
-    
+    let mut station_order: Vec<u32> = Vec::new();
+
     match lines_iterator {
         Ok(lines) => {
             for line in lines {
@@ -42,6 +46,7 @@ fn main() {
                                         
                                         if !station_charger_map.contains_key(&station_id) {
                                             station_charger_map.insert(station_id, HashSet::new());
+                                            station_order.push(station_id);
                                         }
 
                                         let charger_set: &mut HashSet<u32> = station_charger_map.get_mut(&station_id).unwrap();
@@ -68,6 +73,67 @@ fn main() {
         },
         Err(error) => panic!("Problem opening file: {error:?}"),
     };
+    
+    for i in 0..station_order.len() {
+        let station_id = &station_order[i];
+        let chargers = station_charger_map.get(station_id).unwrap();
+        let mut station_available_time: Vec<TimeRange> = Vec::new();
+        for charger in chargers {
+            let charger_times: &Vec<TimeRange> = charger_uptime_map.get(charger).unwrap();
+            // .iter().filter(|a| a.up).cloned().collect();
+            for charger_time in charger_times {
+                if charger_time.up {
+                    station_available_time.push(charger_time.clone());
+                }
+            }
+        }
+
+        if station_available_time.len()==0 {
+            println!("{} {}", station_id, 0);
+            continue;
+        }
+
+        station_available_time.sort_by(|a,b| {
+            if a.from==b.from {
+                if a.to<b.to {
+                    return Ordering::Less;
+                } else if a.to>b.to {
+                    return Ordering::Greater;
+                } else {
+                    return Ordering::Equal;
+                }
+            } else {
+                if a.from<b.from {
+                    return Ordering::Less;
+                } else {
+                    return Ordering::Greater;
+                }
+            }
+            // a.from==b.from?(a.to<b.to?-1:1):(a.from<b.from?-1:1)
+        });
+
+        let first_charger_up_time: u64 = station_available_time[0].from;
+        let mut unavailable_time : u64 = 0;
+        let mut available_till: u64 = station_available_time[0].from;
+        for i in 0..station_available_time.len() {
+            let charger_time: &TimeRange = &station_available_time[i];
+            if charger_time.from>available_till {
+                unavailable_time+=charger_time.from - available_till;
+            }
+            if available_till<charger_time.to {
+                available_till = charger_time.to;
+            }
+        }
+        let mut total_time: u64 = available_till-first_charger_up_time;
+        let mut available_time: u64 = total_time-unavailable_time;
+        if total_time>10000 {
+            total_time/=100;
+        } else {
+            available_time*=100;
+        }
+        let availability_percent: u64 = available_time/total_time;
+        println!("{} {}", station_id, availability_percent);
+    }
 }
 
 /// Takes in a string reference to a file path, and returns an iterator of lines
