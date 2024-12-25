@@ -7,6 +7,7 @@ use std::process;
 use std::cmp::Ordering;
 use std::env::args;
 use std::result::Result;
+use std::io::ErrorKind;
 
 enum InputKind {
     None, 
@@ -43,8 +44,17 @@ impl PartialOrd for TimeRange {
 
 fn main() {
 
-    let file_path = get_file_path();
-    let (station_charger_map, charger_uptime_map, station_order) = construct_maps(&file_path);
+    let file_path_wrapped = get_file_path();
+    if let Err(file_path_error) = file_path_wrapped {
+        eprintln!("{}",file_path_error);
+        process::exit(1);
+    }
+    let construct_map_result = construct_maps(&file_path_wrapped.unwrap());
+    if let Err(construct_map_error) = construct_map_result {
+        eprintln!("{}",construct_map_error);
+        process::exit(2);
+    }
+    let (station_charger_map, charger_uptime_map, station_order) = construct_map_result.unwrap();
     compute_availability(station_charger_map, charger_uptime_map, station_order);
 }
 
@@ -56,17 +66,16 @@ fn main() {
 ///
 /// ### Output: 
 /// - `file_path`: A file path String.
-fn get_file_path() -> String {
+fn get_file_path() -> Result<String, Error> {
 
     let args: Vec<String> = args().collect();
     if args.len()<2 {
-        eprintln!("Missing file path parameter. Please pass a relative file path.");
-        process::exit(1);
+        return Err(Error::new(ErrorKind::InvalidInput, format!("Missing file path parameter. Please pass a relative file path.")));
     }
 
     // The path to the target binary will be passed as the first argument.
     // Hence the `args[1]` here
-    args[1].clone()
+    Ok(args[1].clone())
 }
 
 /// Takes in a string reference to a file path, and returns an iterator of lines
@@ -104,7 +113,7 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
         let mut station_reported_time: Vec<TimeRange> = Vec::new();
         for charger in chargers {
             let charger_times = charger_uptime_map.get(charger);
-            if charger_times == None {
+            if charger_times.is_none() {
                 continue;
             }
             for charger_time in charger_times.unwrap() {
@@ -184,9 +193,9 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
 /// - `station_charger_map`: A map of Station ID to IDs of chargers at the station
 /// - `charger_uptime_map`: A map of Charger ID to `TimeRange` structs for the charger
 /// - `station_order`: A vector with list of stations in the order they appear in input
-fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>, 
+fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>, 
                                         HashMap<u32, Vec<TimeRange>>,
-                                        Vec<u32> ) {
+                                        Vec<u32> ), Error> {
 
     let mut currently_reading: InputKind = InputKind::None;
     let mut station_charger_map: HashMap<u32, HashSet<u32>> = HashMap::new();
@@ -194,15 +203,13 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
     let mut station_order: Vec<u32> = Vec::new();
 
     let lines_iterator = read_lines(&file_path);
-    if Result::is_err(&lines_iterator) {
-        eprintln!("File not found. Please enter a valid path to a file.");
-        process::exit(2);
+    if let Err(lines_iterator_error) = lines_iterator {
+        return Err(lines_iterator_error);
     }
     let lines = lines_iterator.unwrap();
     for wrapped_line in lines {
-        if Result::is_err(&wrapped_line) {
-            eprintln!("Failed to read line.\n{}.", wrapped_line.unwrap());
-            process::exit(2);
+        if let Err(line_error) = wrapped_line {
+            return Err(line_error);
         }
         let l = wrapped_line.unwrap();
         match l.trim() {
@@ -211,10 +218,15 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
             "[Charger Availability Reports]" => currently_reading = InputKind::ChargerAvailability,
             trimmed_l => {
                 match currently_reading {
-                    InputKind::None => panic!("Unable to parse section"),
+                    InputKind::None => {
+                        return Err(Error::new(ErrorKind::InvalidData, "Invalid file format. Unable to read file.\nPlease ensure the file is a `.txt`"));
+                    },
                     InputKind::Station => {
-                        let (station_id, chargers) = parse_station(trimmed_l).unwrap();
-                        
+                        let station_parse_result = parse_station(trimmed_l);
+                        if let Err(station_parse_error) = station_parse_result {
+                            return Err(station_parse_error);
+                        }
+                        let (station_id, chargers) = station_parse_result.unwrap();
                         if !station_charger_map.contains_key(&station_id) {
                             station_charger_map.insert(station_id, HashSet::new());
                             station_order.push(station_id);
@@ -224,7 +236,11 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
                         charger_set.extend(chargers);
                     },
                     InputKind::ChargerAvailability => {
-                        let (charger_id, time_range) = parse_charger_availability(trimmed_l).unwrap();
+                        let charger_parse_result = parse_charger_availability(trimmed_l);
+                        if let Err(charger_parse_error) = charger_parse_result {
+                            return Err(charger_parse_error);
+                        }
+                        let (charger_id, time_range) = charger_parse_result.unwrap();
                         if !charger_uptime_map.contains_key(&charger_id) {
                             let mut uptime_ranges: Vec<TimeRange> = Vec::new();
                             uptime_ranges.push(time_range);
@@ -238,7 +254,7 @@ fn construct_maps(file_path: &str) -> ( HashMap<u32, HashSet<u32>>,
             }
         }
     }
-    (station_charger_map, charger_uptime_map, station_order)
+    return Ok((station_charger_map, charger_uptime_map, station_order))
 }
 
 /// Parses a line of station info and returns it wrapped in a `Result()`.
@@ -254,11 +270,23 @@ fn parse_station(line: &str) -> Result<(u32, Vec<u32>), Error> {
 
     let re = Regex::new(r"\s+").unwrap();
     let mut splits: Vec<&str> = re.split(line).collect();
-    let station_id = splits.swap_remove(0).parse::<u32>().unwrap();
+    if splits.len()==0 {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Could not parse station: \n'{}'", line)));
+    }
+    let station_id_str = splits.swap_remove(0);
+    let station_id_wrapped = station_id_str.parse::<u32>();
+    if station_id_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid station ID: '{}'", station_id_str)));
+    }
+    let station_id = station_id_wrapped.unwrap();
     let mut chargers: Vec<u32> = Vec::new();
 
     while splits.len()>0 {
-        chargers.push(splits.pop().unwrap().parse::<u32>().unwrap());
+        let charger_id_wrapped = splits.pop().unwrap().parse::<u32>();
+        if charger_id_wrapped.is_err() {
+            return Err(Error::new(ErrorKind::InvalidData, format!("Invalid station entry for Station ID: {}.\nCould not parse charger ID.", station_id)));
+        }
+        chargers.push(charger_id_wrapped.unwrap());
     }
     Ok((station_id, chargers))
 
@@ -277,15 +305,35 @@ fn parse_station(line: &str) -> Result<(u32, Vec<u32>), Error> {
 /// The `TimeRange` struct contains parsed start time, end time, and up/down status of charger. 
 fn parse_charger_availability(line: &str) -> Result<(u32, TimeRange), Error> {
     let re = Regex::new(r"(?<charger_id>\d+)\s+(?<start_time>\d+)\s+(?<end_time>\d+)\s*(?<up_status>\w+)").unwrap();
-    let captures = re.captures(line).unwrap();
-    let charger_id: u32 = captures["charger_id"].parse::<u32>().unwrap();
+    let captures_wrapped = re.captures(line);
+    if captures_wrapped.is_none() {
+        return Err(Error::new(ErrorKind::InvalidData, "Could not parse charger availability entry. Please check the input file."));
+    }
+    let captures = captures_wrapped.unwrap();
+    let charger_id_wrapped = captures["charger_id"].parse::<u32>();
+    if charger_id_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, "Invalid charger availability entry.\nCould not parse charger ID."));
+    }
+    let charger_id = charger_id_wrapped.unwrap();
+    let start_time_wrapped = captures["start_time"].parse::<u64>();
+    if start_time_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid charger availability entry.\nCould not parse start time for charger ID: {}.", charger_id)));
+    }
+    let end_time_wrapped = captures["end_time"].parse::<u64>();
+    if end_time_wrapped.is_err() {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid charger availability entry.\nCould not parse end time for charger ID: {}.", charger_id)));
+    }
+    // Note: Any input for up status that's not 'true' or 'True' will be considered as false.
     let time_range = TimeRange {
-        from: captures["start_time"].parse::<u64>().unwrap(),
-        to: captures["end_time"].parse::<u64>().unwrap(),
+        from: start_time_wrapped.unwrap(),
+        to: end_time_wrapped.unwrap(),
         up: match &captures["up_status"] {
             "true" | "True" => true,
             _ => false,
         },
     };
+    if time_range.from>time_range.to {
+        return Err(Error::new(ErrorKind::InvalidData, format!("Invalid charger availability entry for charger ID {}!\nAvailability from is after availability to.", charger_id)));
+    }
     Ok((charger_id, time_range))
 }
