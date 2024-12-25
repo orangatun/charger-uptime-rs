@@ -13,11 +13,31 @@ enum InputKind {
     ChargerAvailability
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Ord)]
 struct TimeRange {
     from: u64,
     to: u64,
     up: bool
+}
+
+impl PartialOrd for TimeRange {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.from==other.from {
+            if self.to<other.to {
+                return Some(Ordering::Less);
+            } else if self.to>other.to {
+                return Some(Ordering::Greater);
+            } else {
+                return Some(Ordering::Equal);
+            }
+        } else {
+            if self.from<other.from {
+                return Some(Ordering::Less);
+            } else {
+                return Some(Ordering::Greater);
+            }
+        }
+    }
 }
 
 fn main() {
@@ -107,23 +127,7 @@ fn main() {
             continue;
         }
 
-        station_available_time.sort_by(|a,b| {
-            if a.from==b.from {
-                if a.to<b.to {
-                    return Ordering::Less;
-                } else if a.to>b.to {
-                    return Ordering::Greater;
-                } else {
-                    return Ordering::Equal;
-                }
-            } else {
-                if a.from<b.from {
-                    return Ordering::Less;
-                } else {
-                    return Ordering::Greater;
-                }
-            }
-        });
+        station_available_time.sort_by(|a,b| a.cmp(&b));
 
         let first_charger_up_time: u64 = station_available_time[0].from;
         let mut unavailable_time : u64 = 0;
