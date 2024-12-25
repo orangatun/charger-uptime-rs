@@ -99,42 +99,77 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
     for i in 0..station_order.len() {
         let station_id = &station_order[i];
         let chargers = station_charger_map.get(station_id).unwrap();
-        let mut station_available_time: Vec<TimeRange> = Vec::new();
+
+        // Gathering all charger reportings of a station
+        let mut station_reported_time: Vec<TimeRange> = Vec::new();
         for charger in chargers {
-            let charger_times: &Vec<TimeRange> = charger_uptime_map.get(charger).unwrap();
-            for charger_time in charger_times {
-                if charger_time.up {
-                    station_available_time.push(charger_time.clone());
-                }
+            let charger_times = charger_uptime_map.get(charger);
+            if charger_times == None {
+                continue;
+            }
+            for charger_time in charger_times.unwrap() {
+                station_reported_time.push(charger_time.clone());
             }
         }
 
-        if station_available_time.len()==0 {
-            println!("{} {}", station_id, 0);
+        if station_reported_time.len()==0 {
+            // No charger reported in from this station.
+            // Uncomment this next line to display station as 0 percent availability
+            // println!("{} {}", station_id, 0);
             continue;
         }
 
-        station_available_time.sort_by(|a,b| a.cmp(&b));
+        // Sort in ascending order of 'from time' of availability report
+        station_reported_time.sort_by(|a,b| a.cmp(&b));
 
-        let first_charger_up_time: u64 = station_available_time[0].from;
-        let mut unavailable_time : u64 = 0;
-        let mut available_till: u64 = station_available_time[0].from;
-        for i in 0..station_available_time.len() {
-            let charger_time: &TimeRange = &station_available_time[i];
-            if charger_time.from>available_till {
-                unavailable_time+=charger_time.from - available_till;
+        // Guaranteed to have at least one reported time at this point.
+        // Initializing to the first report.
+        let first_report = station_reported_time.first().unwrap();
+        let first_reported_time = first_report.from;
+        let mut last_reported_time = first_report.to;
+        let mut available_time: u64 = 
+            if first_report.up {
+                first_report.to +1 -first_report.from
+            } else { 
+                0
+            };
+        let mut reported_till_time: u64 = last_reported_time;
+
+        // Starting from the second report
+        for i in 1..station_reported_time.len() {
+            let charger_time: &TimeRange = &station_reported_time[i];
+            if !charger_time.up {
+                // charger is unavailable
+                continue;
             }
-            if available_till<charger_time.to {
-                available_till = charger_time.to;
+            // Unavailability window in between charger reports
+            if last_reported_time<charger_time.to {
+                last_reported_time = charger_time.to;
             }
+            // charger_time window already covered in previous window
+            if reported_till_time >= charger_time.to {
+                continue;
+            }
+            // charger_time window partial overlap in previous window
+            if reported_till_time >=charger_time.from {
+                available_time += charger_time.to-reported_till_time;
+            } else {
+                available_time += charger_time.to +1 -charger_time.from;
+            }
+            reported_till_time = charger_time.to;
         }
-        let mut total_time: u64 = available_till-first_charger_up_time;
-        let mut available_time: u64 = total_time-unavailable_time;
+        let mut total_time: u64 = last_reported_time +1 - first_reported_time;
+
         if total_time>10000 {
+            // Dividing by 100 to avoid overflow by multiplication
             total_time/=100;
         } else {
+            // If total time is small, available time will be smaller
+            // Multiplying will not cause overflow
             available_time*=100;
         }
+
+        // Total time is guaranteed to not be zero here.
         let availability_percent: u64 = available_time/total_time;
         println!("{} {}", station_id, availability_percent);
     }
