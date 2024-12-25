@@ -343,4 +343,16 @@ mod tests {
         assert_eq!(station_id, station_id_parsed); 
         assert_eq!(chargers_vec, chargers_parsed);
     }
+
+    #[test]
+    fn parse_station_wrong_id() {
+        let station_string = "A 1001 1002";
+        let parse_output = parse_station(&station_string);
+        assert!(parse_output.is_err());
+        if let Err(parse_error) = parse_output {
+            assert_eq!(parse_error.to_string(), "Invalid station ID: 'A'"); 
+        } else {
+            panic!("Parsing was successful!");
+        }
+    }
 }
