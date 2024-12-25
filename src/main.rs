@@ -209,7 +209,7 @@ fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>,
             trimmed_l => {
                 match currently_reading {
                     InputKind::None => {
-                        return Err(Error::new(ErrorKind::InvalidData, "Invalid file format. Unable to read file.\nPlease ensure the file is a `.txt`"));
+                        return Err(Error::new(ErrorKind::InvalidData, "Invalid file format. Unable to read file."));
                     },
                     InputKind::Station => {
                         let station_parse_result = parse_station(trimmed_l);
