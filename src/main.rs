@@ -76,11 +76,17 @@ fn main() {
                             }
                         }
                     }
-                    Err(e) => panic!("{e:?}"),
+                    Err(e) => {
+                        eprintln!("Failed to read line.\n{}.", e);
+                        process::exit(2);
+                    },
                 }
             }
         },
-        Err(error) => panic!("Problem opening file: {error:?}"),
+        Err(_) => {
+            eprintln!("File not found. Please enter a valid path to a file.");
+            process::exit(2);
+        }
     };
     
     for i in 0..station_order.len() {
@@ -89,7 +95,6 @@ fn main() {
         let mut station_available_time: Vec<TimeRange> = Vec::new();
         for charger in chargers {
             let charger_times: &Vec<TimeRange> = charger_uptime_map.get(charger).unwrap();
-            // .iter().filter(|a| a.up).cloned().collect();
             for charger_time in charger_times {
                 if charger_time.up {
                     station_available_time.push(charger_time.clone());
@@ -118,7 +123,6 @@ fn main() {
                     return Ordering::Greater;
                 }
             }
-            // a.from==b.from?(a.to<b.to?-1:1):(a.from<b.from?-1:1)
         });
 
         let first_charger_up_time: u64 = station_available_time[0].from;
