@@ -234,7 +234,7 @@ fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>,
     let mut currently_reading: InputKind = InputKind::None;
     let mut station_charger_map: HashMap<u32, HashSet<u32>> = HashMap::new();
     let mut charger_uptime_map: HashMap<u32, Vec<TimeRange>> = HashMap::new();
-
+    let mut charger_station_map: HashMap<u32, u32> = HashMap::new();
     let lines_iterator = read_lines(&file_path);
     if let Err(lines_iterator_error) = lines_iterator {
         return Err(lines_iterator_error);
@@ -263,7 +263,14 @@ fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>,
                         if !station_charger_map.contains_key(&station_id) {
                             station_charger_map.insert(station_id, HashSet::new());
                         }
-
+                        for charger in &chargers {
+                            if let Some(mapped_station) = charger_station_map.get(&charger) {
+                                if *mapped_station!=station_id {
+                                    return Err(Error::new(ErrorKind::InvalidData, format!("Invalid data. The Charger ID '{}' is mapped to multiple Station IDs({}, and {})", charger, station_id, mapped_station)));
+                                }
+                            }
+                            charger_station_map.insert(*charger, station_id);
+                        }
                         let charger_set: &mut HashSet<u32> = station_charger_map.get_mut(&station_id).unwrap();
                         charger_set.extend(chargers);
                     },
