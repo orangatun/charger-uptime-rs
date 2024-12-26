@@ -36,16 +36,25 @@ fn main() {
 
     let file_path_wrapped = get_file_path();
     if let Err(file_path_error) = file_path_wrapped {
-        eprintln!("{}",file_path_error);
+        eprintln!("ERROR: {}", file_path_error);
         process::exit(1);
     }
     let construct_map_result = construct_maps(&file_path_wrapped.unwrap());
     if let Err(construct_map_error) = construct_map_result {
-        eprintln!("{}",construct_map_error);
+        eprintln!("ERROR: {}", construct_map_error);
         process::exit(2);
     }
-    let (station_charger_map, charger_uptime_map, station_order) = construct_map_result.unwrap();
-    compute_availability(station_charger_map, charger_uptime_map, station_order);
+    let (station_charger_map, charger_uptime_map) = construct_map_result.unwrap();
+    let availability_result = compute_availability(station_charger_map, charger_uptime_map);
+    if let Err(availability_error) = availability_result {
+        eprintln!("ERROR: {}", availability_error);
+        process::exit(3);
+    }
+    let mut station_availability = availability_result.unwrap();
+    station_availability.sort_by(|a,b| a.0.cmp(&b.0));
+    for (station_id, availability_percent) in station_availability {
+        println!("{} {}", station_id, availability_percent);
+    }
 }
 
 
@@ -88,33 +97,39 @@ fn read_lines(file_path: &str) -> Result<Lines<BufReader<File>>, Error> {
 /// ### Input:
 /// - `station_charger_map`: A map of Station ID to IDs of chargers at the station
 /// - `charger_uptime_map`: A map of Charger ID to `TimeRange` structs for the charger
-/// - `station_order`: A vector with list of stations in the order they appear in input
 ///
 /// ### Output: This function does not return anything.
 fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
-                         charger_uptime_map: HashMap<u32, Vec<TimeRange>>,
-                         station_order: Vec<u32> ) {
+                         mut charger_uptime_map: HashMap<u32, Vec<TimeRange>>)
+                         -> Result<Vec<(u32, u8)>, Error> {
 
-    for i in 0..station_order.len() {
-        let station_id = &station_order[i];
-        let chargers = station_charger_map.get(station_id).unwrap();
+    let mut station_availability : Vec<(u32, u8)> = Vec::new();
+    for (station_id, chargers) in station_charger_map {
 
         // Gathering all charger reportings of a station
         let mut station_reported_time: Vec<TimeRange> = Vec::new();
         for charger in chargers {
-            let charger_times = charger_uptime_map.get(charger);
+            let charger_times = charger_uptime_map.get_mut(&charger);
             if charger_times.is_none() {
                 continue;
             }
-            for charger_time in charger_times.unwrap() {
-                station_reported_time.push(charger_time.clone());
+
+            let charger_times_sorted: &mut Vec<TimeRange> = charger_times.unwrap();
+            charger_times_sorted.sort_by(|a,b|a.cmp(&b));
+            let charger_times_combined = charger_times_combine(charger_times_sorted);
+            if let Ok(charger_reports) = charger_times_combined {
+                for charger_time in charger_reports {
+                    station_reported_time.push(charger_time.clone());
+                }
+            } else {
+                return Err(Error::new(ErrorKind::InvalidData, format!("Conflicting availability entires found for charger {}", charger)));
             }
         }
 
         if station_reported_time.len()==0 {
             // No charger reported in from this station.
             // Uncomment this next line to display station as 0 percent availability
-            // println!("{} {}", station_id, 0);
+            // station_availability.push((station_id, 0u8));
             continue;
         }
 
@@ -137,13 +152,15 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
         // Starting from the second report
         for i in 1..station_reported_time.len() {
             let charger_time: &TimeRange = &station_reported_time[i];
+
+            // Keep track of ending of reported time
+            if last_reported_time<charger_time.to {
+                last_reported_time = charger_time.to;
+            }
+
             if !charger_time.up {
                 // charger is unavailable
                 continue;
-            }
-            // Unavailability window in between charger reports
-            if last_reported_time<charger_time.to {
-                last_reported_time = charger_time.to;
             }
             // charger_time window already covered in previous window
             if reported_till_time >= charger_time.to {
@@ -170,8 +187,32 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
 
         // Total time is guaranteed to not be zero here.
         let availability_percent: u64 = available_time/total_time;
-        println!("{} {}", station_id, availability_percent);
+        station_availability.push((station_id, availability_percent as u8));
     }
+    return Ok(station_availability);
+}
+
+fn charger_times_combine(charger_times: &Vec<TimeRange>) -> Result<Vec<TimeRange>, Error> {
+    let mut condensed_times: Vec<TimeRange> = Vec::new();
+    // let mut charger_times_copy = charger_times.clone();
+    let first_report = charger_times.first().unwrap();
+    let mut curr_report = first_report.clone();
+    for i in 1..charger_times.len() {
+        let curr = &charger_times[i];
+        if curr.from-1<=curr_report.to {
+            if curr.up == curr_report.up {
+                curr_report.to = curr.to;
+            } else {
+                return Err(Error::new(ErrorKind::InvalidData, "Conflicting charger reports. Overlapping windows for the same charger."));
+            }
+        } else {
+            condensed_times.push(curr_report.clone());
+            drop(curr_report);
+            curr_report = curr.clone();
+        }
+    }
+    condensed_times.push(curr_report);
+    Ok(condensed_times)
 }
 
 /// Takes in a string reference to a file path, and returns a tuple of 
@@ -182,15 +223,12 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
 /// ### Output: A tuple consisting of
 /// - `station_charger_map`: A map of Station ID to IDs of chargers at the station
 /// - `charger_uptime_map`: A map of Charger ID to `TimeRange` structs for the charger
-/// - `station_order`: A vector with list of stations in the order they appear in input
 fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>, 
-                                        HashMap<u32, Vec<TimeRange>>,
-                                        Vec<u32> ), Error> {
+                                        HashMap<u32, Vec<TimeRange>>), Error> {
 
     let mut currently_reading: InputKind = InputKind::None;
     let mut station_charger_map: HashMap<u32, HashSet<u32>> = HashMap::new();
     let mut charger_uptime_map: HashMap<u32, Vec<TimeRange>> = HashMap::new();
-    let mut station_order: Vec<u32> = Vec::new();
 
     let lines_iterator = read_lines(&file_path);
     if let Err(lines_iterator_error) = lines_iterator {
@@ -219,7 +257,6 @@ fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>,
                         let (station_id, chargers) = station_parse_result.unwrap();
                         if !station_charger_map.contains_key(&station_id) {
                             station_charger_map.insert(station_id, HashSet::new());
-                            station_order.push(station_id);
                         }
 
                         let charger_set: &mut HashSet<u32> = station_charger_map.get_mut(&station_id).unwrap();
@@ -244,7 +281,7 @@ fn construct_maps(file_path: &str) -> Result<( HashMap<u32, HashSet<u32>>,
             }
         }
     }
-    return Ok((station_charger_map, charger_uptime_map, station_order))
+    return Ok((station_charger_map, charger_uptime_map))
 }
 
 /// Parses a line of station info and returns it wrapped in a `Result()`.
