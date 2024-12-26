@@ -52,8 +52,14 @@ fn main() {
     }
     let mut station_availability = availability_result.unwrap();
     station_availability.sort_by(|a,b| a.0.cmp(&b.0));
-    for (station_id, availability_percent) in station_availability {
-        println!("{} {}", station_id, availability_percent);
+
+    // Printing without trailing newline character
+    if let Some((station_id, availability_percent)) = station_availability.first() {
+        print!("{} {}", station_id, availability_percent);
+    }
+    for i in 1..station_availability.len() {
+        let (station_id, availability_percent) = station_availability[i];
+        print!("\n{} {}", station_id, availability_percent);
     }
 }
 
@@ -194,7 +200,6 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
 
 fn charger_times_combine(charger_times: &Vec<TimeRange>) -> Result<Vec<TimeRange>, Error> {
     let mut condensed_times: Vec<TimeRange> = Vec::new();
-    // let mut charger_times_copy = charger_times.clone();
     let first_report = charger_times.first().unwrap();
     let mut curr_report = first_report.clone();
     for i in 1..charger_times.len() {
