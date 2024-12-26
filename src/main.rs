@@ -368,7 +368,8 @@ fn parse_charger_availability(line: &str) -> Result<(u32, TimeRange), Error> {
         to: end_time_wrapped.unwrap(),
         up: match &captures["up_status"] {
             "true" | "True" => true,
-            _ => false,
+            "false" | "False" => false,
+            _ => return Err(Error::new(ErrorKind::InvalidData, format!("Invalid charger availability entry.\nMissing charger up status(true/false) in entry:\n{}", line))),
         },
     };
     if time_range.from>time_range.to {
