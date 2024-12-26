@@ -7,10 +7,10 @@ This project is for a coding challenge. The objective is to take a formatted tex
 ## TL;DR
 This section is a condensed version of the execution instructions.
 
-To run a pre-compiled executable for `x86_64-unknown-linux-gnu` target, run the commands:
+To run a pre-compiled executable for `x86_64-unknown-linux-gnu` target, download the binary from [releases](https://github.com/orangatun/charger-uptime-rs/releases).
+Create an `input.txt` file in the same directory as the downloaded binary, or replace `./input.txt` with relative path to the input file.
+Run it with the command
 ```sh
-git clone https://github.com/orangatun/charger-uptime-rs.git
-cd charger-uptime-rs
 ./charger-uptime-rs ./input.txt
 ```
 If you don't have Rust installed, install Rust from [here](https://www.rust-lang.org/tools/install). For linux or macOS, run the command:
@@ -22,9 +22,11 @@ Assuming you have Rust installed, To build and run, use the commands:
 git clone https://github.com/orangatun/charger-uptime-rs.git
 cd charger-uptime-rs
 cargo build --release
-mv ./target/release/debug/charger-uptime-rs .
+mv ./target/release/charger-uptime-rs .
 ./charger-uptime-rs ./input.txt
 ```
+![Gif showing steps](https://github.com/user-attachments/assets/4277572a-cf42-4d2c-a4c0-2f898a14aa52)
+
 You can compare it to the expected output file `./input_expected_output.txt`.
 
 For detailed setup, build, and execution instructions, read on. At the end, there is a section with preconditions and other considerations.
