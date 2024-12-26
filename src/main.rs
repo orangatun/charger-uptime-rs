@@ -143,7 +143,7 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
         let mut last_reported_time = first_report.to;
         let mut available_time: u64 = 
             if first_report.up {
-                first_report.to +1 -first_report.from
+                first_report.to -first_report.from
             } else { 
                 0
             };
@@ -170,11 +170,11 @@ fn compute_availability( station_charger_map: HashMap<u32, HashSet<u32>>,
             if reported_till_time >=charger_time.from {
                 available_time += charger_time.to-reported_till_time;
             } else {
-                available_time += charger_time.to +1 -charger_time.from;
+                available_time += charger_time.to - charger_time.from;
             }
             reported_till_time = charger_time.to;
         }
-        let mut total_time: u64 = last_reported_time +1 - first_reported_time;
+        let mut total_time: u64 = last_reported_time - first_reported_time;
 
         if total_time>10000 {
             // Dividing by 100 to avoid overflow by multiplication
@@ -199,7 +199,7 @@ fn charger_times_combine(charger_times: &Vec<TimeRange>) -> Result<Vec<TimeRange
     let mut curr_report = first_report.clone();
     for i in 1..charger_times.len() {
         let curr = &charger_times[i];
-        if curr.from-1<=curr_report.to {
+        if curr.from<curr_report.to {
             if curr.up == curr_report.up {
                 curr_report.to = curr.to;
             } else {
